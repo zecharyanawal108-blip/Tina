@@ -1,9 +1,3 @@
-import socket
-import time
-from concurrent.futures import ThreadPoolExecutor
-import argparse
-import random
-
 # --- 1. Настройки и константы ---
 
 # Максимальное количество потоков
