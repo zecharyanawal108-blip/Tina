@@ -1,65 +1,100 @@
-# --- 1. Настройки и константы ---
-
-# Максимальное количество потоков
-MAX_WORKERS = 50 
-# Таймаут в секундах для ожидания ответа от порта
-SCAN_TIMEOUT = 0.5
-
-# --- 2. Основная функция сканирования ---
-
-def scan_port(host, port, timeout):
-    """
-    Пытается установить TCP-соединение с указанным портом.
-    Возвращает статус порта: 'Открыт' или 'Закрыт/Фильтруется'.
-    """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(timeout)
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Симулятор Заказа Еды</title>
     
-    try:
-        # Попытка подключения
-        result = sock.connect_ex((host, port))
-        
-        # connect_ex возвращает 0, если соединение установлено (порт открыт)
-        if result == 0:
-            status = "ОТКРЫТ"
-        else:
-            status = "Закрыт/Фильтр"
-            
-    except socket.gaierror:
-        # Ошибка разрешения имени хоста
-        status = "Ошибка: Неизвестный хост"
-    except Exception:
-        # Другие ошибки (например, таймаут, если connect_ex не сработал корректно)
-        status = "Ошибка: Другая проблема"
-        
-    finally:
-        sock.close()
-        
-    return host, port, status
+    <style>
+        /* --- CSS: Стилизация, имитирующая мобильное приложение --- */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f8f8f8;
+            padding: 10px;
+            color: #333;
+        }
 
-# --- 3. Главная функция запуска сканера ---
+        .app-container {
+            max-width: 450px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
 
-def run_port_scanner(host, port_range, max_workers, timeout):
-    """
-    Управляет многопоточным сканированием портов.
-    """
-    
-    # Генерация списка портов для сканирования
-    start_port, end_port = map(int, port_range.split('-'))
-    ports_to_scan = list(range(start_port, end_port + 1))
-    
-    print(f"\n--- 📡 МНОГОПОТОЧНЫЙ СКАНЕР ПОРТОВ ---")
-    print(f"Целевой хост: {host}")
-    print(f"Диапазон портов: {start_port}-{end_port} ({len(ports_to_scan)} портов)")
-    print(f"Потоков: {max_workers} | Таймаут: {timeout} с")
-    print("-" * 60)
+        header {
+            background-color: #ff5722; /* Цвет доставки */
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
 
-    open_ports = []
-    
-    start_time_total = time.time()
-     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        
-        # Создаем карту аргументов для передачи в scan_port
-        futures = {executor.submit(scan_port, host, port, timeout): port for port in ports_to_scan}
-        
-        # Обработка результатов по мере их готов
+        .menu-list, .cart-summary {
+            padding: 15px;
+        }
+
+        .menu-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .item-info h4 {
+            margin: 0;
+            font-size: 1em;
+        }
+
+        .item-info p {
+            margin: 2px 0 0;
+            color: #777;
+            font-size: 0.9em;
+        }
+
+        .add-btn {
+            background-color: #4CAF50; /* Зеленый цвет для "Добавить" */
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+
+        .add-btn:hover {
+            background-color: #45a049;
+        }
+
+        /* --- Корзина (Cart) --- */
+        .cart-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-top: 15px;
+            color: #ff5722;
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            font-size: 0.95em;
+        }
+
+        .cart-item .controls button {
+            background: none;
+            border: 1px solid #ccc;
+            padding: 2px 8px;
+            cursor: pointer;
+            margin: 0 5px;
+            border-radius: 3px;
+        }
+
+        .checkout-btn {
+            width: 100%;
+            background-color: #1a73e
