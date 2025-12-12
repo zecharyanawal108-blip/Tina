@@ -1,88 +1,74 @@
-from cryptography.fernet import Fernet
-import os
-import base64
+import socket
+import time
+from concurrent.futures import ThreadPoolExecutor
+import argparse
+import random
 
-# --- 1. Основные функции безопасности ---
+# --- 1. Настройки и константы ---
 
-def generate_encryption_key():
+# Максимальное количество потоков
+MAX_WORKERS = 50 
+# Таймаут в секундах для ожидания ответа от порта
+SCAN_TIMEOUT = 0.5
+
+# --- 2. Основная функция сканирования ---
+
+def scan_port(host, port, timeout):
     """
-    Генерирует новый 32-байтный ключ Fernet, закодированный в Base64.
-    Этот ключ должен храниться в безопасности!
+    Пытается установить TCP-соединение с указанным портом.
+    Возвращает статус порта: 'Открыт' или 'Закрыт/Фильтруется'.
     """
-    # 
-
-[Image of symmetric encryption diagram]
-
-    return Fernet.generate_key()
-
-def save_key(key, filename="secret.key"):
-    """Сохраняет ключ в файл."""
-    with open(filename, 'wb') as key_file:
-        key_file.write(key)
-    print(f"✅ Ключ сохранен в файл: {filename}")
-
-def load_key(filename="secret.key"):
-    """Загружает ключ из файла."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    
     try:
-        with open(filename, 'rb') as key_file:
-            return key_file.read()
-    except FileNotFoundError:
-        print(f"❌ ОШИБКА: Файл ключа '{filename}' не найден. Сгенерируйте его сначала.")
-        return None
+        # Попытка подключения
+        result = sock.connect_ex((host, port))
+        
+        # connect_ex возвращает 0, если соединение установлено (порт открыт)
+        if result == 0:
+            status = "ОТКРЫТ"
+        else:
+            status = "Закрыт/Фильтр"
+            
+    except socket.gaierror:
+        # Ошибка разрешения имени хоста
+        status = "Ошибка: Неизвестный хост"
+    except Exception:
+        # Другие ошибки (например, таймаут, если connect_ex не сработал корректно)
+        status = "Ошибка: Другая проблема"
+        
+    finally:
+        sock.close()
+        
+    return host, port, status
 
-def encrypt_data(data, key):
-    """Шифрует данные (строку) с использованием ключа Fernet."""
-    f = Fernet(key)
-    # Данные должны быть в формате bytes
-    encoded_data = data.encode()
-    encrypted_token = f.encrypt(encoded_data)
-    # Возвращаем зашифрованный результат в виде строки для удобства
-    return encrypted_token.decode()
+# --- 3. Главная функция запуска сканера ---
 
-def decrypt_data(encrypted_data, key):
-    """Дешифрует данные (строку) с использованием ключа Fernet."""
-    f = Fernet(key)
-    # Данные должны быть в формате bytes (снова кодируем)
-    encrypted_token = encrypted_data.encode()
-    decrypted_data = f.decrypt(encrypted_token)
-    # Возвращаем дешифрованный результат в виде строки
-    return decrypted_data.decode()
-
-# --- 2. Демонстрация работы ---
-
-KEY_FILE = "security_demo.key"
-ORIGINAL_DATA = "Это очень секретная строка, которую нужно зашифровать перед сохранением."
-
-print("--- 🔐 ИНСТРУМЕНТ СИММЕТРИЧНОГО ШИФРОВАНИЯ (Fernet) ---")
-print(f"Исходные данные: '{ORIGINAL_DATA}'")
-print("-" * 60)
-
-# 1. Генерируем ключ и сохраняем его
-encryption_key = generate_encryption_key()
-save_key(encryption_key, KEY_FILE)
-
-# 2. Шифруем данные
-encrypted_text = encrypt_data(ORIGINAL_DATA, encryption_key)
-
-print("🔒 Зашифрованные данные (Token):")
-print(f"{encrypted_text}")
-print("-" * 60)
-
-# 3. Дешифруем данные (используя ТОТ ЖЕ ключ)
-# Имитируем загрузку ключа из файла
-loaded_key = load_key(KEY_FILE)
-
-if loaded_key:
-    decrypted_text = decrypt_data(encrypted_text, loaded_key)
+def run_port_scanner(host, port_range, max_workers, timeout):
+    """
+    Управляет многопоточным сканированием портов.
+    """
     
-    print("🔓 Дешифрованные данные:")
-    print(f"'{decrypted_text}'")
+    # Генерация списка портов для сканирования
+    start_port, end_port = map(int, port_range.split('-'))
+    ports_to_scan = list(range(start_port, end_port + 1))
     
-    # 4. Проверка
-    is_match = decrypted_text == ORIGINAL_DATA
+    print(f"\n--- 📡 МНОГОПОТОЧНЫЙ СКАНЕР ПОРТОВ ---")
+    print(f"Целевой хост: {host}")
+    print(f"Диапазон портов: {start_port}-{end_port} ({len(ports_to_scan)} портов)")
+    print(f"Потоков: {max_workers} | Таймаут: {timeout} с")
     print("-" * 60)
-    print(f"Статус проверки: {'✅ Успех' if is_match else '❌ Ошибка'}")
 
-# 5. Очистка (удаление файла ключа)
-os.remove(KEY_FILE)
-print(f"\nУдален временный файл ключа: {KEY_FILE}")
+    open_ports = []
+    
+    start_time_total = time.time()
+    
+    # Использование ThreadPoolExecutor для параллельного выполнения
+    # 
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        
+        # Создаем карту аргументов для передачи в scan_port
+        futures = {executor.submit(scan_port, host, port, timeout): port for port in ports_to_scan}
+        
+        # Обработка результатов по мере их готов
