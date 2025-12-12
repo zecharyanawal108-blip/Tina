@@ -57,10 +57,7 @@ def run_port_scanner(host, port_range, max_workers, timeout):
     open_ports = []
     
     start_time_total = time.time()
-    
-    # Использование ThreadPoolExecutor для параллельного выполнения
-    # 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         
         # Создаем карту аргументов для передачи в scan_port
         futures = {executor.submit(scan_port, host, port, timeout): port for port in ports_to_scan}
